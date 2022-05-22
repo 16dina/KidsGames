@@ -1,0 +1,400 @@
+<!-- Disclaimer: The basics of a normal snake game were from: https://gist.github.com/ZiKT1229/5935a10ce818ea7b851ea85ecf55b4da -->
+<!-- I added a lot of stuff to it to make it educational and with Ai, but the original is not mine -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title></title>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+        }
+
+        body {
+            background: #dd5b45;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: Arial, serif;
+        }
+        canvas {
+            border: 1px solid white;
+            background-color: #f3e1d5;
+            position: relative;
+        }
+
+        h1, h2, h3{
+            color: white;
+            text-align: center;
+        }
+
+        main {
+            display: flex;
+            flex-direction: column;
+            margin: 20px;
+        }
+
+        div {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        ul {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+
+        }
+
+        li {
+            float: left;
+            margin-left: 5px;
+            margin-right: 5px;
+        }
+
+        li a {
+            display: block;
+            padding: 8px;
+            background-color: #f3e1d5;
+            text-decoration: none;
+            border: 3px solid black;
+            border-radius: 25px;
+            color: black;
+        }
+
+        li a:hover {
+            color: #dd5b45;
+            border-color: #dd5b45;
+        }
+
+        #logo {
+            border-radius: 50%;
+            position: fixed;
+            top: 10px;
+            left: 10px;
+        }
+
+        img {
+            border: solid 1px transparent;
+            border-radius: 15px;
+            margin: 20px;
+            width: 100px;
+            height: 100px;
+        }
+
+        header h1 {
+            margin-top: 70px;
+        }
+
+        #result {
+            position: absolute;
+            font-size: 2rem;
+            width: 400px;
+            height: 400px;
+            text-align: center;
+        }
+
+        h4 {
+            text-align: center;
+            color: black;
+            margin: 2px;
+            padding: 3px;
+            background-color: #f3e1d5;
+            border-radius: 5px;
+        }
+    </style>
+    <link rel="shortcut icon" type="image/x-icon" href="KidsGames-logos_transparent.png">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.9.0/p5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.9.0/addons/p5.dom.min.js"></script>
+    <script src="https://unpkg.com/ml5@latest/dist/ml5.min.js" type="text/javascript"></script>
+</head>
+<body>
+<header>
+    <img src="./KidsGames-logos.jpeg" alt="logo" id="logo">
+    <h1>KidsGames - Educational Games</h1>
+    <nav>
+        <ul>
+<!--            <li><a href="#home">Home</a></li>-->
+            <li><a href="index.html">ABC Game</a></li>
+        </ul>
+    </nav>
+</header>
+<main>
+    <h2>Math with Mr Green Snake :)</h2>
+    <h3 id="instructions"></h3>
+    <h4>Use voice commands like "Up/Left/Down/Right" to move the snake.</h4>
+    <h4>Eat the blue apple when you think you got it right!</h4>
+    <div>
+        <canvas width="400" height="400" id="game"></canvas>
+        <div id="result"></div>
+    </div>
+</main>
+</body>
+<script>
+    var requiredApples = 0;
+    var classifier; // variable that will contain our trained model
+    var audioModelURL = 'https://teachablemachine.withgoogle.com/models/l67egVE1S/'; // variable of our trained model's URL
+    var label = ""; // placeholder for the label, the thing we want to classify, the output of our model
+
+    function create_random_number1() {
+        var num1 = Math.floor(Math.random() * 6);
+        console.log(num1);
+        requiredApples += num1;
+        return num1;
+    }
+
+    function create_random_number2() {
+        var num2 = Math.floor(Math.random() * 6);
+        requiredApples += num2;
+        console.log(num2);
+        return num2
+    }
+
+    function createInstructions() {
+        var str1 = create_random_number1().toString();
+        var str2 = create_random_number2().toString();
+        return 'Eat (' + str1 + ' + ' + str2 + ') apples to win the game!';
+    }
+
+    document.getElementById('instructions').innerHTML = createInstructions();
+
+    var canvas = document.getElementById('game');
+    var context = canvas.getContext('2d');
+
+    var grid = 16;
+    var count = 0;
+    console.log(requiredApples);
+    var eatenApples = 0;
+
+    var snake = {
+        x: 160,
+        y: 160,
+
+        // snake velocity. moves one grid length every frame in either the x or y direction
+        dx: grid,
+        dy: 0,
+
+        // keep track of all grids the snake body occupies
+        cells: [],
+
+        // length of the snake. grows when eating an apple
+        maxCells: 4
+    };
+    var apple = {
+        x: 320,
+        y: 320
+    };
+
+    var finish = {
+        x: 0,
+        y: 0
+    }
+
+    // get random whole numbers in a specific range
+    function getRandomInt(min, max) {
+        return Math.floor(Math.random() * (max - min)) + min;
+    }
+
+    // game loop
+    function loop() {
+        requestAnimationFrame(loop);
+
+        // slow game loop to 15 fps instead of 60 (60/15 = 4)
+        if (++count < 15) {
+            return;
+        }
+
+        count = 0;
+        context.clearRect(0,0,canvas.width,canvas.height);
+
+        // move snake by it's velocity
+        snake.x += snake.dx;
+        snake.y += snake.dy;
+
+        // wrap snake position horizontally on edge of screen
+        if (snake.x < 0) {
+            snake.x = canvas.width - grid;
+        }
+        else if (snake.x >= canvas.width) {
+            snake.x = 0;
+        }
+
+        // wrap snake position vertically on edge of screen
+        if (snake.y < 0) {
+            snake.y = canvas.height - grid;
+        }
+        else if (snake.y >= canvas.height) {
+            snake.y = 0;
+        }
+
+        // keep track of where snake has been. front of the array is always the head
+        snake.cells.unshift({x: snake.x, y: snake.y});
+
+        // remove cells as we move away from them
+        if (snake.cells.length > snake.maxCells) {
+            snake.cells.pop();
+        }
+
+        // draw finish
+        context.fillStyle = 'blue';
+        context.fillRect(finish.x, finish.y, grid-1, grid-1);
+
+        // draw apple
+        context.fillStyle = 'red';
+        context.fillRect(apple.x, apple.y, grid-1, grid-1);
+
+        // draw snake one cell at a time
+        context.fillStyle = 'green';
+        snake.cells.forEach(function(cell, index) {
+
+            // drawing 1 px smaller than the grid creates a grid effect in the snake body so you can see how long it is
+            context.fillRect(cell.x, cell.y, grid-1, grid-1);
+
+            // snake ate apple
+            if (cell.x === apple.x && cell.y === apple.y) {
+                snake.maxCells++;
+                eatenApples++;
+                console.log(eatenApples);
+
+                // canvas is 400x400 which is 25x25 grids
+                apple.x = getRandomInt(0, 25) * grid;
+                apple.y = getRandomInt(0, 25) * grid;
+            }
+
+            if (cell.x === finish.x && cell.y === finish.y) {
+                if (eatenApples === requiredApples){
+                    console.log("You win");
+                    document.getElementById("result").innerHTML = 'Correct! You Win! :)\nPress Space to Play Again';
+                    document.getElementById("result").style.backgroundColor = "rgba(0,0,0,0.5)";
+                    document.getElementById("result").style.color = "white";
+                } else {
+                    console.log("You lose");
+                    document.getElementById("result").innerHTML = 'Nope :( Press Space to Try Again!';
+                    document.getElementById("result").style.backgroundColor = "rgba(0,0,0,0.5)";
+                    document.getElementById("result").style.color = "white";
+                }
+            }
+
+            // check collision with all cells after this one (modified bubble sort)
+            for (var i = index + 1; i < snake.cells.length; i++) {
+
+                // snake occupies same space as a body part. reset game
+                if (cell.x === snake.cells[i].x && cell.y === snake.cells[i].y) {
+                    snake.x = 160;
+                    snake.y = 160;
+                    snake.cells = [];
+                    snake.maxCells = 4;
+                    snake.dx = grid;
+                    snake.dy = 0;
+
+                    apple.x = getRandomInt(0, 25) * grid;
+                    apple.y = getRandomInt(0, 25) * grid;
+                }
+            }
+        });
+    }
+
+    // Uncomment if you want to play with the keyboard as well
+    // // listen to keyboard events to move the snake
+    // document.addEventListener('keydown', function(e) {
+    //     // prevent snake from backtracking on itself by checking that it's
+    //     // not already moving on the same axis (pressing left while moving
+    //     // left won't do anything, and pressing right while moving left
+    //     // shouldn't let you collide with your own body)
+    //
+    //     // left arrow key
+    //     if (e.which === 37 && snake.dx === 0) {
+    //         snake.dx = -grid;
+    //         snake.dy = 0;
+    //     }
+    //     // up arrow key
+    //     else if (e.which === 38 && snake.dy === 0) {
+    //         snake.dy = -grid;
+    //         snake.dx = 0;
+    //     }
+    //     // right arrow key
+    //     else if (e.which === 39 && snake.dx === 0) {
+    //         snake.dx = grid;
+    //         snake.dy = 0;
+    //     }
+    //     // down arrow key
+    //     else if (e.which === 40 && snake.dy === 0) {
+    //         snake.dy = grid;
+    //         snake.dx = 0;
+    //     } else if (e.key === " " ||
+    //         e.code === "Space" ||
+    //         e.keyCode === 32
+    //     ) {
+    //         location.reload();
+    //     }
+    // });
+    //
+    // listen to keyboard events to move the snake
+    document.addEventListener('keydown', function(e) {
+        if (e.key === " " ||
+            e.code === "Space" ||
+            e.keyCode === 32
+        ) {
+            location.reload();
+        }
+    });
+
+    function preload() {
+        classifier = ml5.soundClassifier(audioModelURL + 'model.json');
+    }
+    preload();
+
+
+    function AIController() {
+        // left arrow key
+        if (label === "Left" && snake.dx === 0) {
+            snake.dx = -grid;
+            snake.dy = 0;
+        }
+        // up arrow key
+        else if (label === "Up" && snake.dy === 0) {
+            snake.dy = -grid;
+            snake.dx = 0;
+        }
+        // right arrow key
+        else if (label === "Right" && snake.dx === 0) {
+            snake.dx = grid;
+            snake.dy = 0;
+        }
+        // down arrow key
+        else if (label === "Down" && snake.dy === 0) {
+            snake.dy = grid;
+            snake.dx = 0;
+        }
+    }
+
+
+    function classifyAudio() {
+        classifier.classify(gotResult);
+    }
+
+    classifyAudio();
+
+    function gotResult(error, results) {
+        if (error) {
+            console.error(error);
+            return;
+        }
+        label = results[0].label;
+        AIController();
+
+    }
+
+    // start the game
+    requestAnimationFrame(loop);
+</script>
+
+
+</html>
