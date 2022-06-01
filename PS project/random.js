@@ -107,6 +107,28 @@ function playMusic() {
 }
 
 document.addEventListener('keydown', function(e) {
+    // left arrow key
+    if (e.which === 37) {
+        pictureChangeBack();
+    }
+    // right arrow key
+    else if (e.which === 39) {
+        pictureChangeNext();
+    }
+    // enter key
+    else if (e.which === 13) {
+        console.log(letter);
+        if (letter === nextLetter) {
+            document.getElementById("result").innerHTML = "Correct! :) After " + randomLetter.toUpperCase() + " comes " + nextLetter.toUpperCase() + " Press 'Space' to play again.";
+            console.log("Winner");
+        } else {
+            document.getElementById("result").innerHTML = "Nope :( Try again!"
+            console.log("try again");
+        }
+    }
+});
+
+document.addEventListener('keydown', function(e) {
     if (e.key === " " ||
         e.code === "Space" ||
         e.keyCode === 32
